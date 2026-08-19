@@ -227,6 +227,7 @@ public sealed partial class FormBrowse : GitModuleForm, IBrowseRepo
     private TabPage? _consoleTabPage;
     private OutputHistoryControllerBase? _outputHistoryController;
     private ClaudeAssistantControl? _claudeAssistant;
+    private DateTime _lastExternalGitActivity = DateTime.MinValue;
 
     private readonly Dictionary<Brush, Icon> _overlayIconByBrush = [];
 
@@ -469,6 +470,12 @@ public sealed partial class FormBrowse : GitModuleForm, IBrowseRepo
 
     protected override void OnApplicationActivated()
     {
+        // Immediately bypass the 30 s FSW throttle so staged/unstaged counts update on focus.
+        RefreshGitStatusMonitor();
+
+        // Reload the revision graph if an external tool committed or fetched while we were away.
+        CheckForExternalGitActivity();
+
         if (AppSettings.RefreshArtificialCommitOnApplicationActivated)
         {
             if (CommitInfoTabControl.SelectedTab == DiffTabPage)
@@ -482,6 +489,66 @@ public sealed partial class FormBrowse : GitModuleForm, IBrowseRepo
         }
 
         base.OnApplicationActivated();
+    }
+
+    private void CheckForExternalGitActivity()
+    {
+        if (!Module.IsValidGitWorkingDir())
+        {
+            return;
+        }
+
+        DateTime latest = GetLatestGitActivityTime();
+
+        if (_lastExternalGitActivity == DateTime.MinValue)
+        {
+            _lastExternalGitActivity = latest; // first focus: initialise without refreshing
+            return;
+        }
+
+        if (latest > _lastExternalGitActivity)
+        {
+            _lastExternalGitActivity = latest;
+            UICommands.RepoChangedNotifier.Notify();
+        }
+    }
+
+    private DateTime GetLatestGitActivityTime()
+    {
+        string gitDir = Path.Combine(Module.WorkingDir, ".git");
+
+        // For git worktrees .git is a file — resolve to the real git dir
+        if (File.Exists(gitDir))
+        {
+            string content = File.ReadAllText(gitDir).Trim();
+            if (content.StartsWith("gitdir: "))
+            {
+                gitDir = content["gitdir: ".Length..].Trim();
+            }
+        }
+
+        if (!Directory.Exists(gitDir))
+        {
+            return DateTime.MinValue;
+        }
+
+        DateTime latest = DateTime.MinValue;
+
+        // These files are written by commits, merges, fetches, and rebases
+        foreach (string name in (string[])["COMMIT_EDITMSG", "FETCH_HEAD", "ORIG_HEAD", "MERGE_HEAD", "REBASE_HEAD"])
+        {
+            string path = Path.Combine(gitDir, name);
+            if (File.Exists(path))
+            {
+                DateTime t = File.GetLastWriteTime(path);
+                if (t > latest)
+                {
+                    latest = t;
+                }
+            }
+        }
+
+        return latest;
     }
 
     protected override void OnLoad(EventArgs e)
@@ -1709,6 +1776,8 @@ public sealed partial class FormBrowse : GitModuleForm, IBrowseRepo
     private void SetGitModule(object? sender, GitModuleEventArgs e)
     {
         string originalWorkingDir = Module.WorkingDir;
+
+        _lastExternalGitActivity = DateTime.MinValue; // re-baseline for the new repo
 
         HideVariableMainMenuItems();
         PluginRegistry.Unregister(UICommands);
