@@ -1,38 +1,35 @@
-/* RepoRidge Modern Dark Theme */
-/* GitHub Dark inspired palette — see https://primer.style/primitives/colors */
+/* RepoRidge Modern Dark Theme — GitKraken-inspired */
 
 @import url("dark.css");
 
-/* Surface layers — three distinct depths for visual hierarchy */
-.PanelBackground         { color: #161b22; }
-.EditorBackground        { color: #0d1117; }
-.LineNumberBackground    { color: #161b22; }
+/* ── Surfaces ────────────────────────────────────────────────────────────── */
+/* Deep layered hierarchy: toolbar → panel → editor */
+.PanelBackground         { color: #1a1d21; }
+.EditorBackground        { color: #0f1012; }
+.LineNumberBackground    { color: #1a1d21; }
 
-/* Diff authored highlight */
-.AuthoredHighlight       { color: #2d2a1e; }
+/* ── Diff highlights ─────────────────────────────────────────────────────── */
+.AuthoredHighlight       { color: #2a2400; }
+.Selection               { color: #1e3a5a; }
+.HighlightAllOccurences  { color: #19314d; }
+.InactiveSelectionHighlight { color: #162940; }
+.DiffSection             { color: #171a1e; }
 
-/* Selection & search highlights */
-.Selection               { color: #264f78; }
-.HighlightAllOccurences  { color: #1f4068; }
-.InactiveSelectionHighlight { color: #1f3a55; }
+/* ── Commit graph — vivid, distinct set ─────────────────────────────────── */
+/* GitKraken uses bright saturated colours on near-black */
+.GraphBranch1 { color: #4db040; }   /* accent green  */
+.GraphBranch2 { color: #5aaffa; }   /* sky blue      */
+.GraphBranch3 { color: #e06c75; }   /* rose red      */
+.GraphBranch4 { color: #c678dd; }   /* purple        */
+.GraphBranch5 { color: #e5c07b; }   /* warm gold     */
+.GraphBranch6 { color: #56b6c2; }   /* teal          */
+.GraphBranch7 { color: #d19a66; }   /* orange        */
+.GraphBranch8 { color: #98c379; }   /* light green   */
+.GraphNonRelativeBranch { color: #3d4148; }
 
-/* Diff section gutter */
-.DiffSection             { color: #1c2128; }
-
-/* Commit graph — distinct, vibrant, colorblind-friendly set */
-.GraphBranch1 { color: #ff7b72; }
-.GraphBranch2 { color: #79c0ff; }
-.GraphBranch3 { color: #56d364; }
-.GraphBranch4 { color: #d2a8ff; }
-.GraphBranch5 { color: #ffa657; }
-.GraphBranch6 { color: #39c5cf; }
-.GraphBranch7 { color: #f0e68c; }
-.GraphBranch8 { }
-.GraphNonRelativeBranch { color: #484f58; }
-
-/* Ref labels */
-.Branch                  { color: #56d364; }
-.RemoteBranch            { color: #ff7b72; }
-.RemoteBranch.colorblind { color: #79c0ff; }
-.Tag                     { color: #ffa657; }
-.OtherTag                { color: #8b949e; }
+/* ── Ref labels ──────────────────────────────────────────────────────────── */
+.Branch                  { color: #4db040; }   /* GitKraken green  */
+.RemoteBranch            { color: #5aaffa; }   /* sky blue         */
+.RemoteBranch.colorblind { color: #e5c07b; }
+.Tag                     { color: #e5c07b; }   /* warm gold        */
+.OtherTag                { color: #6a7282; }

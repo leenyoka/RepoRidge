@@ -51,10 +51,7 @@ public static class ThemeFix
 
     private static void SetupToolStrip(ToolStrip strip)
     {
-        // RenderMode seem to be required for two reasons:
-        // * FormBrowse menubar background is not overridden.
-        // * LinkColor override (in SetupToolStripStatusLabel()).
-        strip.RenderMode = ToolStripRenderMode.Professional;
+        strip.Renderer = new ModernToolStripRenderer();
         foreach (ToolStripLabel item in strip.Items.OfType<ToolStripLabel>())
         {
             SetupToolStripStatusLabel(item);
