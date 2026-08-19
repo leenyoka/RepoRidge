@@ -2,7 +2,7 @@
 
 public readonly struct ThemeId
 {
-    private static readonly string DefaultDarkThemeName = new("dark");
+    private static readonly string DefaultDarkThemeName = new("modern-dark");
     private static readonly string DefaultLightThemeName = new("light");
     private static readonly string WindowsAppColorModeName = new("Windows app color mode");
 
