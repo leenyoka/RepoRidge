@@ -2,7 +2,7 @@
 <Include>
 
   <?define Manufacturer = "Git Extensions Team" ?>
-  <?define ProductName = "Git Extensions" ?>
+  <?define ProductName = "RepoRidge" ?>
   <?define InstallName = GitExtensions ?>
 
   <?define AppRegKey = "Software\GitExtensions" ?>

@@ -314,6 +314,9 @@
       <Component Id="Themes.dark_plus.css" Guid="*">
         <File Source="$(var.ArtifactsPublishPath)\Themes\dark+.css" />
       </Component>
+      <Component Id="Themes.modern_dark.css" Guid="*">
+        <File Source="$(var.ArtifactsPublishPath)\Themes\modern-dark.css" />
+      </Component>
     </DirectoryRef>
     <DirectoryRef Id="PluginsDir">
       <Component Id="DeleteUnusedBranches.dll" Guid="*">
@@ -809,6 +812,7 @@
       <ComponentRef Id="Themes.light_plus.css" />
       <ComponentRef Id="Themes.dark.css" />
       <ComponentRef Id="Themes.dark_plus.css" />
+      <ComponentRef Id="Themes.modern_dark.css" />
     </ComponentGroup>
     <ComponentGroup Id="Component.Translation">
       <ComponentRef Id="English.gif" />
