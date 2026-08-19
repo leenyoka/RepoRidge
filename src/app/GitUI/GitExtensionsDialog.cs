@@ -22,13 +22,27 @@ public partial class GitExtensionsDialog : GitModuleForm
     {
         InitializeComponent();
 
-        // Lighten up the control panel
-        ControlsPanel.BackColor = SystemColors.ControlLight.MakeDarkerBy(-0.04);
-        MainPanel.BackColor = AppColor.PanelBackground.GetThemeColor();
+        ApplyThemeColors();
+        ThemeModule.ThemeChanged += OnThemeChanged;
+        FormClosed += (_, _) => ThemeModule.ThemeChanged -= OnThemeChanged;
 
         // Draw a separator line at the top of the footer panel, similar to what Task Dialog does
         ControlsPanel.Paint += (s, e)
             => e.Graphics.DrawLine(FooterDividerPen, new Point(e.ClipRectangle.Left, 0), new Point(e.ClipRectangle.Right, 0));
+    }
+
+    private void ApplyThemeColors()
+    {
+        // Lighten up the control panel
+        ControlsPanel.BackColor = SystemColors.ControlLight.MakeDarkerBy(-0.04);
+        MainPanel.BackColor = AppColor.PanelBackground.GetThemeColor();
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        ApplyThemeColors();
+        this.FixVisualStyle();
+        Refresh();
     }
 
     /// <summary>

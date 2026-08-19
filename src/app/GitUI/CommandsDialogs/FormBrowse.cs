@@ -226,6 +226,7 @@ public sealed partial class FormBrowse : GitModuleForm, IBrowseRepo
 
     private TabPage? _consoleTabPage;
     private OutputHistoryControllerBase? _outputHistoryController;
+    private ClaudeAssistantControl? _claudeAssistant;
 
     private readonly Dictionary<Brush, Icon> _overlayIconByBrush = [];
 
@@ -1284,6 +1285,7 @@ public sealed partial class FormBrowse : GitModuleForm, IBrowseRepo
 
         IReadOnlyList<ObjectId> children = RevisionGrid.GetRevisionChildren(revision.ObjectId);
         RevisionInfo.SetRevisionWithChildren(revision, children);
+        _claudeAssistant?.SetContext(revision, Module.WorkingDir);
     }
 
     private async Task FillGpgInfoAsync(GitRevision? revision)

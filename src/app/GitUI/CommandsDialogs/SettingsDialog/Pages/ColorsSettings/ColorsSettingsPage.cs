@@ -9,6 +9,7 @@ namespace GitUI.CommandsDialogs.SettingsDialog.Pages;
 public partial class ColorsSettingsPage : SettingsPageWithHeader, IColorsSettingsPage
 {
     private readonly ColorsSettingsPageController _controller;
+    private bool _settingsSaved;
 
     private static readonly TranslationString FormatBuiltinThemeName =
         new("{0}");
@@ -26,6 +27,13 @@ public partial class ColorsSettingsPage : SettingsPageWithHeader, IColorsSetting
         chkUseSystemVisualStyle.CheckedChanged += ChkUseSystemVisualStyle_CheckedChanged;
         chkColorblind.CheckedChanged += ChkColorblind_CheckedChanged;
         _controller = new ColorsSettingsPageController(this, new ThemeRepository(), new ThemePathProvider());
+        Disposed += (_, _) =>
+        {
+            if (!_settingsSaved)
+            {
+                _controller.RevertPreview();
+            }
+        };
         InitializeComplete();
     }
 
@@ -122,6 +130,7 @@ public partial class ColorsSettingsPage : SettingsPageWithHeader, IColorsSetting
 
     protected override void PageToSettings()
     {
+        _settingsSaved = true;
         AppSettings.MulticolorBranches = MulticolorBranches.Checked;
         AppSettings.RevisionGraphDrawAlternateBackColor = chkDrawAlternateBackColor.Checked;
         AppSettings.RevisionGraphDrawNonRelativesGray = DrawNonRelativesGray.Checked;

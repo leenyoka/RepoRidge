@@ -1,0 +1,38 @@
+/* RepoRidge Modern Dark Theme */
+/* GitHub Dark inspired palette — see https://primer.style/primitives/colors */
+
+@import url("dark.css");
+
+/* Surface layers — three distinct depths for visual hierarchy */
+.PanelBackground         { color: #161b22; }
+.EditorBackground        { color: #0d1117; }
+.LineNumberBackground    { color: #161b22; }
+
+/* Diff authored highlight */
+.AuthoredHighlight       { color: #2d2a1e; }
+
+/* Selection & search highlights */
+.Selection               { color: #264f78; }
+.HighlightAllOccurences  { color: #1f4068; }
+.InactiveSelectionHighlight { color: #1f3a55; }
+
+/* Diff section gutter */
+.DiffSection             { color: #1c2128; }
+
+/* Commit graph — distinct, vibrant, colorblind-friendly set */
+.GraphBranch1 { color: #ff7b72; }
+.GraphBranch2 { color: #79c0ff; }
+.GraphBranch3 { color: #56d364; }
+.GraphBranch4 { color: #d2a8ff; }
+.GraphBranch5 { color: #ffa657; }
+.GraphBranch6 { color: #39c5cf; }
+.GraphBranch7 { color: #f0e68c; }
+.GraphBranch8 { }
+.GraphNonRelativeBranch { color: #484f58; }
+
+/* Ref labels */
+.Branch                  { color: #56d364; }
+.RemoteBranch            { color: #ff7b72; }
+.RemoteBranch.colorblind { color: #79c0ff; }
+.Tag                     { color: #ffa657; }
+.OtherTag                { color: #8b949e; }

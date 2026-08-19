@@ -11,6 +11,8 @@ public static class ThemeModule
 
     private static ThemeRepository Repository { get; } = new();
 
+    public static event EventHandler? ThemeChanged;
+
     public static void Load()
     {
         Settings = LoadThemeSettings(Repository);
@@ -18,6 +20,22 @@ public static class ThemeModule
         UpdateEditorSettings();
         ColorHelper.ThemeSettings = Settings;
         ThemeFix.ThemeSettings = Settings;
+    }
+
+    public static void ApplyTheme(ThemeId themeId, string[] variations)
+    {
+        Theme invariantTheme = Repository.GetInvariantTheme();
+        Theme theme = themeId == ThemeId.DefaultLight
+            ? Theme.CreateDefaultTheme(variations)
+            : Repository.GetTheme(themeId, variations);
+        bool useSystemVisualStyle = themeId == ThemeId.DefaultLight || theme.SystemColorMode == SystemColorMode.Classic;
+        Settings = new ThemeSettings(theme, invariantTheme, variations, useSystemVisualStyle);
+        Application.SetColorMode(Settings.Theme.SystemColorMode);
+        UpdateEditorSettings();
+        ColorHelper.ThemeSettings = Settings;
+        ThemeFix.ThemeSettings = Settings;
+        ThemeFix.Reset();
+        ThemeChanged?.Invoke(null, EventArgs.Empty);
     }
 
     private static void UpdateEditorSettings()

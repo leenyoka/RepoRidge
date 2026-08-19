@@ -45,6 +45,22 @@ partial class FormBrowse
 
         // Populate terminal tab after translation within InitializeComplete
         FillTerminalTab();
+
+        InitClaudeTab();
+    }
+
+    private void InitClaudeTab()
+    {
+        _claudeAssistant = new ClaudeAssistantControl();
+
+        TabPage claudeTabPage = new()
+        {
+            Text = "Claude",
+            Name = "ClaudeTabPage",
+        };
+        claudeTabPage.Controls.Add(_claudeAssistant);
+
+        CommitInfoTabControl.Controls.Add(claudeTabPage);
     }
 
     private void FillBuildReport(GitRevision? revision)

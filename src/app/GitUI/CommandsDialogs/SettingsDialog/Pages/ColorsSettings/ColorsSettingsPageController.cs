@@ -10,6 +10,8 @@ internal sealed class ColorsSettingsPageController
     private readonly IThemeRepository _themeRepository;
     private readonly IThemePathProvider _themePathProvider;
     private int _updateThemeSettingsCounter;
+    private ThemeId? _originalThemeId;
+    private string[] _originalVariations = ThemeVariations.None;
 
     public ColorsSettingsPageController(
         IColorsSettingsPage page, IThemeRepository themeRepository,
@@ -29,6 +31,9 @@ internal sealed class ColorsSettingsPageController
 
     public void ShowThemeSettings()
     {
+        _originalThemeId ??= AppSettings.ThemeId;
+        _originalVariations = AppSettings.ThemeVariations;
+
         BeginUpdateThemeSettings();
         _page.PopulateThemeMenu(Enumerable.Repeat(ThemeId.WindowsAppColorModeId, 1).Concat(_themeRepository.GetThemeIds()));
         _page.SelectedThemeId = AppSettings.ThemeId;
@@ -87,13 +92,38 @@ internal sealed class ColorsSettingsPageController
         }
 
         EndUpdateThemeSettings();
+        ApplyThemePreview(_page.SelectedThemeId, _page.SelectedThemeVariations);
     }
 
     public void HandleUseSystemVisualStyleChanged() =>
         UpdateThemeSettings();
 
-    public void HandleUseColorblindVariationChanged() =>
+    public void HandleUseColorblindVariationChanged()
+    {
         UpdateThemeSettings();
+        ApplyThemePreview(_page.SelectedThemeId, _page.SelectedThemeVariations);
+    }
+
+    public void RevertPreview()
+    {
+        if (_originalThemeId is ThemeId original)
+        {
+            ThemeModule.ApplyTheme(original == ThemeId.WindowsAppColorModeId ? ThemeId.ColorModeThemeId : original, _originalVariations);
+        }
+    }
+
+    private void ApplyThemePreview(ThemeId themeId, string[] variations)
+    {
+        ThemeId actualId = themeId == ThemeId.WindowsAppColorModeId ? ThemeId.ColorModeThemeId : themeId;
+        try
+        {
+            ThemeModule.ApplyTheme(actualId, variations);
+        }
+        catch (Exception)
+        {
+            // Error already surfaced by EndUpdateThemeSettings
+        }
+    }
 
     public void UpdateThemeSettings()
     {
