@@ -20,6 +20,8 @@ public sealed class ClaudeAssistantControl : UserControl
     private GitRevision? _currentRevision;
     private string? _workingDir;
     private bool _isBusy;
+    private readonly Guid _sessionId = Guid.NewGuid();
+    private bool _sessionStarted;
 
     public ClaudeAssistantControl()
     {
@@ -146,7 +148,34 @@ public sealed class ClaudeAssistantControl : UserControl
 
         _inputBox.Clear();
         AppendMessage("You", userInput);
-        AskClaude(userInput);
+
+        if (userInput.Equals("/login", StringComparison.OrdinalIgnoreCase))
+        {
+            RunLogin();
+        }
+        else
+        {
+            AskClaude(userInput);
+        }
+    }
+
+    private void RunLogin()
+    {
+        _isBusy = true;
+        _sendButton.Enabled = false;
+        _statusLabel.Text = "Opening browser to sign in…";
+
+        Task.Run(() =>
+        {
+            string response = RunClaudeAuthLogin();
+            BeginInvoke(() =>
+            {
+                AppendMessage("Claude", response);
+                _statusLabel.Text = string.Empty;
+                _sendButton.Enabled = true;
+                _isBusy = false;
+            });
+        });
     }
 
     private void AskClaude(string userInput)
@@ -197,14 +226,25 @@ public sealed class ClaudeAssistantControl : UserControl
         return sb.ToString();
     }
 
-    private static string RunClaudeCli(string prompt)
+    /// <summary>
+    /// Runs a prompt via the Claude CLI, resuming this panel's session on every call after
+    /// the first so follow-up messages ("approved", "what about X instead") have the prior
+    /// turns as context — each `-p` invocation is otherwise a fresh, memoryless process.
+    /// </summary>
+    private string RunClaudeCli(string prompt)
     {
+        string? claudePath = FindClaudeExecutable();
+        if (claudePath is null)
+        {
+            return "Claude CLI not found.\n\nInstall Claude Code from claude.ai/code, or install Claude Desktop.";
+        }
+
         try
         {
             using Process process = new();
             process.StartInfo = new ProcessStartInfo
             {
-                FileName = "claude",
+                FileName = claudePath,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -212,8 +252,11 @@ public sealed class ClaudeAssistantControl : UserControl
             };
             process.StartInfo.ArgumentList.Add("-p");
             process.StartInfo.ArgumentList.Add(prompt);
+            process.StartInfo.ArgumentList.Add(_sessionStarted ? "--resume" : "--session-id");
+            process.StartInfo.ArgumentList.Add(_sessionId.ToString());
 
             process.Start();
+            _sessionStarted = true;
 
             string output = process.StandardOutput.ReadToEnd();
             string error = process.StandardError.ReadToEnd();
@@ -226,19 +269,130 @@ public sealed class ClaudeAssistantControl : UserControl
 
             if (!string.IsNullOrWhiteSpace(error))
             {
-                return $"Claude error: {error.Trim()}";
+                return $"Claude error: {error.Trim()}\n\nNot signed in? Type /login.";
             }
 
-            return "No response received. Make sure the Claude CLI is installed and you are logged in (run: claude login).";
+            return "No response received. Not signed in? Type /login.";
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
         {
-            return "Claude CLI not found in PATH.\n\nInstall Claude Code from claude.ai/code, then log in by running: claude login";
+            return "Claude CLI not found.\n\nInstall Claude Code from claude.ai/code, or install Claude Desktop.";
         }
         catch (Exception ex)
         {
             return $"Error: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Runs "claude auth login" directly (rather than as a -p prompt, which never reaches
+    /// the CLI's slash-command handling) so typing /login in the chat opens a real browser
+    /// sign-in instead of silently failing.
+    /// </summary>
+    private static string RunClaudeAuthLogin()
+    {
+        string? claudePath = FindClaudeExecutable();
+        if (claudePath is null)
+        {
+            return "Claude CLI not found.\n\nInstall Claude Code from claude.ai/code, or install Claude Desktop.";
+        }
+
+        try
+        {
+            using Process process = new();
+            process.StartInfo = new ProcessStartInfo
+            {
+                FileName = claudePath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            process.StartInfo.ArgumentList.Add("auth");
+            process.StartInfo.ArgumentList.Add("login");
+
+            process.Start();
+
+            string output = process.StandardOutput.ReadToEnd();
+            string error = process.StandardError.ReadToEnd();
+            bool exited = process.WaitForExit(300_000);
+
+            if (!exited)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                return "Sign-in timed out after 5 minutes. Type /login to try again.";
+            }
+
+            if (process.ExitCode == 0)
+            {
+                return "Signed in. Go ahead and ask your question.";
+            }
+
+            string details = !string.IsNullOrWhiteSpace(error) ? error.Trim() : output.Trim();
+            return string.IsNullOrEmpty(details)
+                ? "Sign-in did not complete. Type /login to try again."
+                : $"Sign-in did not complete: {details}";
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
+        {
+            return "Claude CLI not found.\n\nInstall Claude Code from claude.ai/code, or install Claude Desktop.";
+        }
+        catch (Exception ex)
+        {
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Resolves the Claude CLI executable: a standalone install on PATH takes priority,
+    /// falling back to the CLI bundled inside a Claude Desktop install (used internally
+    /// for its agent features) so the "no separate CLI or API key" experience still works
+    /// when only Claude Desktop is present. GUI apps inherit a snapshot of PATH from
+    /// explorer.exe at logon, so a CLI installed afterwards may not resolve via PATH here
+    /// even though it works from a terminal.
+    /// </summary>
+    private static string? FindClaudeExecutable()
+    {
+        foreach (string dir in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator))
+        {
+            if (dir.Length == 0)
+            {
+                continue;
+            }
+
+            foreach (string candidate in new[] { "claude.exe", "claude.cmd", "claude" })
+            {
+                string full = Path.Combine(dir.Trim('"'), candidate);
+                if (File.Exists(full))
+                {
+                    return full;
+                }
+            }
+        }
+
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string claudeCodeRoot = Path.Combine(appData, "Claude", "claude-code");
+        if (!Directory.Exists(claudeCodeRoot))
+        {
+            return null;
+        }
+
+        string? latestExe = new DirectoryInfo(claudeCodeRoot)
+            .GetDirectories()
+            .Select(versionDir => new { versionDir, exe = Path.Combine(versionDir.FullName, "claude.exe") })
+            .Where(x => File.Exists(x.exe))
+            .OrderByDescending(x => x.versionDir.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.exe)
+            .FirstOrDefault();
+
+        return latestExe;
     }
 
     private void AppendMessage(string speaker, string message)
