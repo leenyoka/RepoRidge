@@ -105,6 +105,20 @@ public static class BugReportInvoker
             return;
         }
 
+        // Ignore the known WinForms GroupBox caption-measurement bug: GroupBox measures its
+        // text with a Font that is disposed or otherwise stale (commonly after a DPI or
+        // display-settings change), throwing on repaint. The exact call path depends on
+        // whether visual styles are active — GroupBoxRenderer.DrawThemedGroupBoxWithText
+        // (themed) or GroupBox.DrawGroupBox (classic) — both are the same root cause.
+        // Harmless: the next repaint uses a valid Font, so skip the interruption.
+        if (exception is ArgumentException &&
+            (exception.StackTrace?.Contains("GroupBoxRenderer.DrawThemedGroupBoxWithText") is true ||
+             exception.StackTrace?.Contains("GroupBox.DrawGroupBox") is true))
+        {
+            Trace.WriteLine(exception);
+            return;
+        }
+
         // Do not report cancellation of async implementations awaited by the UI thread (refer to https://github.com/gitextensions/gitextensions/issues/11636)
         if (exception is OperationCanceledException or TaskCanceledException)
         {
