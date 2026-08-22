@@ -161,37 +161,54 @@ public sealed class ClaudeAssistantControl : UserControl
 
     private void RunLogin()
     {
-        _isBusy = true;
-        _sendButton.Enabled = false;
-        _statusLabel.Text = "Opening browser to sign in…";
-
-        Task.Run(() =>
+        RunBusy(reportProgress =>
         {
-            string response = RunClaudeAuthLogin();
-            BeginInvoke(() =>
+            if (FindClaudeExecutable() is null)
             {
-                AppendMessage("Claude", response);
-                _statusLabel.Text = string.Empty;
-                _sendButton.Enabled = true;
-                _isBusy = false;
-            });
+                if (TrySetUpClaudeCli(reportProgress))
+                {
+                    reportProgress("Signed in. Go ahead and ask your question.");
+                }
+
+                return;
+            }
+
+            (_, string message) = RunClaudeAuthLoginCore();
+            reportProgress(message);
         });
     }
 
     private void AskClaude(string userInput)
     {
+        string prompt = BuildPrompt(userInput);
+
+        RunBusy(reportProgress =>
+        {
+            if (FindClaudeExecutable() is null && !TrySetUpClaudeCli(reportProgress))
+            {
+                return;
+            }
+
+            reportProgress(RunClaudeCli(prompt));
+        });
+    }
+
+    /// <summary>
+    /// Runs a background action that can post one or more Claude messages into the
+    /// conversation as it progresses (e.g. "installing…" then a final result), managing
+    /// the busy/status UI state around it.
+    /// </summary>
+    private void RunBusy(Action<Action<string>> action)
+    {
         _isBusy = true;
         _sendButton.Enabled = false;
         _statusLabel.Text = "Asking Claude…";
 
-        string prompt = BuildPrompt(userInput);
-
         Task.Run(() =>
         {
-            string response = RunClaudeCli(prompt);
+            action(message => BeginInvoke(() => AppendMessage("Claude", message)));
             BeginInvoke(() =>
             {
-                AppendMessage("Claude", response);
                 _statusLabel.Text = string.Empty;
                 _sendButton.Enabled = true;
                 _isBusy = false;
@@ -285,16 +302,52 @@ public sealed class ClaudeAssistantControl : UserControl
     }
 
     /// <summary>
+    /// Installs the Claude CLI via npm and signs in when it isn't already available,
+    /// reporting progress into the chat as it goes so setup never requires leaving
+    /// GitExtensions for a terminal. Returns true once the CLI is installed and signed in.
+    /// </summary>
+    private static bool TrySetUpClaudeCli(Action<string> reportProgress)
+    {
+        reportProgress("Claude CLI not found. Installing via npm (this can take a minute)…");
+
+        string installLog = RunViaCmd("npm install -g @anthropic-ai/claude-code", 180_000, out bool exited, out int exitCode);
+
+        if (!exited)
+        {
+            reportProgress("npm install timed out after 3 minutes. Ask your question again to retry.");
+            return false;
+        }
+
+        if (installLog.Contains("is not recognized", StringComparison.OrdinalIgnoreCase))
+        {
+            reportProgress("npm isn't installed.\n\nInstall Node.js from nodejs.org, then ask your question again.");
+            return false;
+        }
+
+        if (exitCode != 0 || FindClaudeExecutable() is null)
+        {
+            reportProgress($"npm install failed:\n\n{installLog.Trim()}");
+            return false;
+        }
+
+        reportProgress("Installed. Opening browser to sign in…");
+
+        (bool signedIn, string loginMessage) = RunClaudeAuthLoginCore();
+        reportProgress(loginMessage);
+        return signedIn;
+    }
+
+    /// <summary>
     /// Runs "claude auth login" directly (rather than as a -p prompt, which never reaches
     /// the CLI's slash-command handling) so typing /login in the chat opens a real browser
     /// sign-in instead of silently failing.
     /// </summary>
-    private static string RunClaudeAuthLogin()
+    private static (bool Success, string Message) RunClaudeAuthLoginCore()
     {
         string? claudePath = FindClaudeExecutable();
         if (claudePath is null)
         {
-            return "Claude CLI not found.\n\nInstall Claude Code from claude.ai/code, or install Claude Desktop.";
+            return (false, "Claude CLI not found.\n\nInstall Claude Code from claude.ai/code, or install Claude Desktop.");
         }
 
         try
@@ -327,27 +380,67 @@ public sealed class ClaudeAssistantControl : UserControl
                 {
                 }
 
-                return "Sign-in timed out after 5 minutes. Type /login to try again.";
+                return (false, "Sign-in timed out after 5 minutes. Type /login to try again.");
             }
 
             if (process.ExitCode == 0)
             {
-                return "Signed in. Go ahead and ask your question.";
+                return (true, "Signed in. Go ahead and ask your question.");
             }
 
             string details = !string.IsNullOrWhiteSpace(error) ? error.Trim() : output.Trim();
-            return string.IsNullOrEmpty(details)
+            return (false, string.IsNullOrEmpty(details)
                 ? "Sign-in did not complete. Type /login to try again."
-                : $"Sign-in did not complete: {details}";
+                : $"Sign-in did not complete: {details}");
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
         {
-            return "Claude CLI not found.\n\nInstall Claude Code from claude.ai/code, or install Claude Desktop.";
+            return (false, "Claude CLI not found.\n\nInstall Claude Code from claude.ai/code, or install Claude Desktop.");
         }
         catch (Exception ex)
         {
-            return $"Error: {ex.Message}";
+            return (false, $"Error: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Runs a command through cmd.exe (needed because npm resolves to npm.cmd on Windows,
+    /// which Process.Start can't launch directly without UseShellExecute) and returns its
+    /// combined stdout/stderr.
+    /// </summary>
+    private static string RunViaCmd(string command, int timeoutMs, out bool exited, out int exitCode)
+    {
+        using Process process = new();
+        process.StartInfo = new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        process.StartInfo.ArgumentList.Add("/c");
+        process.StartInfo.ArgumentList.Add(command);
+
+        process.Start();
+
+        string output = process.StandardOutput.ReadToEnd();
+        string error = process.StandardError.ReadToEnd();
+        exited = process.WaitForExit(timeoutMs);
+        exitCode = exited ? process.ExitCode : -1;
+
+        if (!exited)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        return output + error;
     }
 
     /// <summary>
